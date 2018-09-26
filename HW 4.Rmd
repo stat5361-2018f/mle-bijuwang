@@ -1,0 +1,230 @@
+---
+title: "Many Local Maxima and Modeling Beetle Data"
+subtitle: "HW 4 of STAT 5361 Statistical Computing"
+author: Biju Wang^[<bijuwang@uconn.edu>]
+date: "`r format(Sys.Date(), '%m/%d/%Y')`"
+header-includes: 
+  \usepackage{float}
+  \floatplacement{figure}{H}
+output: 
+  pdf_document:
+    number_sections: true
+---
+
+# Many Local Maxima
+## 
+
+The likelihood function is
+$$L(\theta)=\prod^{n}_{i=1}\frac{1-\cos(X_{i}-\theta)}{2\pi}$$
+Thus, the log likelihood fucntion is
+$$l(\theta)=\sum^{n}_{i=1}\log[1-\cos(X_{i}-\theta)]-n\log2\pi$$
+The following plot is the curve of log likelihood function
+```{r, echo = TRUE, fig.asp=.32, fig.pos = "H",fig.cap = "Log Likelihood Function vs. $\\theta$"}
+sample <- c(3.91, 4.85, 2.28, 4.06, 3.70, 4.04, 5.46, 3.53, 2.28, 1.96,
+       2.53, 3.88, 2.22, 3.47, 4.82, 2.46, 2.99, 2.54, 0.52)
+log_sum <- function(x, sample){
+  log_sum <- 0
+  for (i in 1:length(sample)) {
+    log_sum <- log_sum + log(1 - cos(sample[i] - x)) - log(2 * pi)
+  }
+  log_sum
+}
+library("ggplot2")
+ggplot(data.frame(x = c(-pi, pi)), aes(x = x)) + 
+stat_function(fun = function(x) log_sum(x, sample)) + 
+labs(x = expression("Values of"~theta), y = expression("Log Likelihood Function"~l(theta))) + 
+theme(plot.title = element_text(hjust = 0.5)) + 
+ggtitle(expression("Log Likelihood Function vs."~theta))
+```
+
+##
+
+\begin{align*}
+E(X|\theta) & =\int^{2\pi}_{0}x\frac{1-\cos(x-\theta)}{2\pi}dx\\
+            & =\frac{1}{2\pi}\left[\int^{2\pi}_{0}xdx-\int^{2\pi}_{0}x\cos(x-\theta)dx\right]\\
+            & =\frac{1}{2\pi}\left(2\pi^{2}+2\pi\sin\theta\right)\\
+            & =\pi+\sin\theta
+\end{align*}
+Let $E(X|\theta)$ equal sample mean $\bar{X}_{n}$
+$$\pi+\sin\theta=\bar{X}_{n}$$
+we could obtain the method-of-moments estimator of $\theta$ is $\tilde{\theta}_{n}=0.095$ or $3.046$.
+
+##
+
+The first derivative is
+$$l'(\theta)=\sum^{n}_{i=1}\frac{-\sin(X_{i}-\theta)}{1-\cos(X_{i}-\theta)}$$
+
+The second derivative is
+$$l''(\theta)=\sum^{n}_{i=1}\frac{1}{\cos(X_{i}-\theta)-1}$$
+```{r, message = FALSE}
+sample <- c(3.91, 4.85, 2.28, 4.06, 3.70, 4.04, 5.46, 3.53, 2.28, 1.96,
+       2.53, 3.88, 2.22, 3.47, 4.82, 2.46, 2.99, 2.54, 0.52)
+
+dev1_log_sum <- function(x){
+  dev1_log_sum <- 0
+  for (i in 1:length(sample)) {
+    dev1_log_sum <- dev1_log_sum - sin(sample[i] - x)/(1 - cos(sample[i] - x))
+  }
+  dev1_log_sum
+}
+
+dev2_log_sum <- function(x){
+  dev2_log_sum <- 0
+  for (i in 1:length(sample)) {
+    dev2_log_sum <- dev2_log_sum + 1/(cos(sample[i] - x) - 1)
+  }
+  dev2_log_sum
+}
+
+newton.raphson <- function(init, fun, fun.dev, maxiter = 100, tol = .Machine$double.eps^0.2){
+  x <- init
+  for (i in 1:maxiter) {
+    x1 <- x -fun(x)/fun.dev(x)
+    if(abs(x1 - x) < tol) break
+    x <- x1
+  }
+  if(i == maxiter)
+    message("Reached the maximum iteration!")
+  
+  return(data.frame(root = x1, iter = i))
+}
+
+init <- c(asin(mean(sample) - pi), pi - asin(mean(sample) - pi))
+res <- data.frame(init = init, root = rep(NA, length(init)))
+for (i in 1:length(init)) {
+  res$root[i] <- newton.raphson(init[i], dev1_log_sum, dev2_log_sum)$root
+}
+
+res_trans <- t(as.matrix(res))
+rownames(res_trans) <- c("Initial Values", "Roots")
+
+knitr::kable(res_trans, booktabs = TRUE,
+             caption = "Initial Values and Roots")
+
+```
+##
+
+The outcomes are in the following table
+
+```{r, message = FALSE}
+init <- c(-2.7, 2.7)
+res <- data.frame(init = init, root = rep(NA, length(init)))
+for (i in 1:length(init)) {
+  res$root[i] <- newton.raphson(init[i], dev1_log_sum, dev2_log_sum)$root
+}
+
+res_trans <- t(as.matrix(res))
+rownames(res_trans) <- c("Initial Values", "Roots")
+
+knitr::kable(res_trans, booktabs = TRUE,
+             caption = "Initial Values and Roots")
+```
+##
+
+```{r, fig.asp=.5, fig.pos = "H", fig.cap = "Scatter Plot of Roots vs. Initial Values"}
+options(digits = 6)
+init <- seq(-pi, pi, length = 200)
+res <- data.frame(init = init, root = rep(NA, length(init)))
+for (i in 1:length(init)) {
+  res$root[i] <- newton.raphson(init[i], dev1_log_sum, dev2_log_sum)$root
+}
+
+res <- round(res, 5)
+res_trans <- t(as.matrix(res))
+rownames(res_trans) <- c("Initial Values", "Roots")
+
+library("pander")
+library("ggplot2")
+pander(res_trans, split.table = 120, style = 'rmarkdown', caption = "Initial Values and Roots")
+
+ggplot(res, aes(x = init, y = root)) + geom_point() + 
+scale_x_continuous(breaks = round(seq(min(res$init), max(res$init), by = 1),1)) +
+labs(x = "Initial Values", y = "Roots from Newton-Raphson") + 
+theme(plot.title = element_text(hjust = 0.5)) + 
+ggtitle("Scatter Plot of Roots vs. Initial Values")
+
+table <- as.data.frame(table(res[,2]))
+table <- t(as.matrix(table))
+table <- rbind(table, cumsum(table[2,]))
+rownames(table) <- c("Roots", "Amount", "Cumulative Amount")
+pander(table, split.table = 120, style = 'rmarkdown', caption = "Roots, Amount and Cumulative Amount")
+
+```
+
+From the table above, we can partition the $200$ initial points into $21$ separate groups with each group corresponding to a separate unique outcome of the optimization. According to order number of initial values, the $21$ groups are
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{cccccc}
+$[1, 11]$ & $[12, 13]$ & $[14, 18]$ & $[19, 24]$ & $[25, 25]$ & $[26, 28]$\\
+$[29, 29]$ & $[30, 30]$ & $[31, 54]$ & $[55, 55]$ & $[56, 69]$ & $[70, 74]$\\
+$[75, 116]$ & $[117, 162]$ & $[163, 170]$ & $[171, 171]$ & $[172, 172]$ & $[173, 178]$\\
+$[179, 180]$ & $[181, 195]$ & $[196, 200]$
+\end{tabular}
+\end{center}
+\caption{Groups of Initial Values for the Same Root}
+\end{table}
+
+# Modeling Beetle Data
+## Least Square Method
+The solution for the differential equation is not unique unless we give a initial condition which will determine $N_{0}$. In the following solutions, we assume $N_{0}=2$. This is reasonable since at time $0$ the population size is $2$. We need to minimize
+$$g(r, K)=\sum^{n}_{i=1}\left[N_{i}-\frac{2K}{2+(K-2)e^{-rt_{i}}}\right]^{2}$$
+We use Gauss-Newton approach to address this optimization problem, this is also the default method of the function nlxb in package nlmrt. The initial values for both $K$ and $r$ are $1$. The roots and contor plot are below 
+
+```{r, fig.asp=.5, fig.pos = "H", fig.cap = "Contour Plot for the Objective Function"}
+beetles <- data.frame(
+    days    = c(0,  8,  28,  41,  63,  69,   97, 117,  135,  154),
+    beetles = c(2, 47, 192, 256, 768, 896, 1120, 896, 1184, 1024))
+
+goal <- function(r, K){
+  goal <- 0
+  for (i in 1:nrow(beetles)) {
+    goal <- goal + (beetles[i,2]-(2 * K)/(2 + (K - 2) * exp(-r * beetles[i,1])))^2
+  }
+  goal
+}
+
+library("ggplot2")
+r <- seq(1, 2000, 0.1)
+K <- seq(1, 2000, 0.1)
+data <- data.frame(r = r, K = K)
+data$z <- with(data, goal(r, K))
+ggplot(data, aes(r, K, z))+ geom_point(aes(colour = z)) + stat_density2d() +
+theme(plot.title = element_text(hjust = 0.5)) + 
+ggtitle("Contour Plot for the Objective Function")
+
+library("nlmrt")
+mod.data <- data.frame(x = beetles[,1], y = beetles[,2])
+nlmod <- nlxb(y ~ 2 * K/(2 + (K - 2) * exp(-r * x)), data = mod.data, start = c(K = 1, r = 1))
+nlmod$coefficients
+```
+## MLE Method
+Since we assume $\log N_{t}\sim N(\log f(t), \sigma^{2})$, the likelihood function is
+$$L(r, K, \sigma^{2})=\prod^{n}_{i=1}\frac{1}{\sqrt{2\pi\sigma^{2}}}\exp(-\frac{(\log N_{i}-\log\frac{2K}{2+(K-2)\exp(-rt_{i})})^{2}}{2\sigma^{2}})$$
+Thus, the log likelihood function is
+$$l(r, K, \sigma^{2})=-\frac{n}{2}\log(2\pi\sigma^{2})-\sum^{n}_{i=1}\frac{(\log N_{i}-\log\frac{2K}{2+(K-2)\exp(-rt_{i})})^{2}}{2\sigma^{2}}$$
+We would like to maximize the log likelihood function regarding to $r, K, \sigma^{2}$. Since the objective function is very complex, directly using Newton-Raphson method is not appropriate. We instead use Quasi-Newton method, specifically, we use BFGS method in package optimx or optim. The point estimations and variance for it are shown below
+
+```{r}
+library("optimx")
+goal <- function(x){
+  goal <- 0
+  r <- x[1]
+  K <- x[2]
+  sigma2 <- x[3]
+  for (i in 1:nrow(beetles)) {
+    goal <- goal - log(2 * pi * sigma2)/2 - 
+      (log(beetles[i,2]) - log((2 * K)/(2 + (K - 2) * exp(-r * beetles[i,1]))))^2/(2 * sigma2)
+  }
+  goal
+}
+
+BFGSmod <- optimx(c(800, 800, 70), fn = goal, gr = NULL, method = "BFGS", hessian = TRUE)
+coef.BFGSmod <- coef(BFGSmod)
+colnames(coef.BFGSmod) <- c("r", "K", "sigma^2")
+BFGSmod
+coef.BFGSmod
+BFGSmod1 <- optim(c(800, 800, 70), fn = goal, gr = NULL, method = "BFGS", hessian = TRUE)
+BFGSmod1$hessian
+MASS::ginv(-BFGSmod1$hessian)
+```
+
